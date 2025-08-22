@@ -30,6 +30,7 @@ function App() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Mock data - In real implementation, this would fetch from n8n API
   const N8N_WEBHOOK_URL = 'https://n8n.srv846726.hstgr.cloud/webhook/f9993f5c-0eda-499b-9e41-e9fbdebc6b45/chat';
@@ -37,6 +38,7 @@ function App() {
   // Simulate data fetching
   const fetchData = async () => {
     setIsRefreshing(true);
+    setError(null);
     
     try {
       const response = await fetch(N8N_WEBHOOK_URL, {
@@ -87,7 +89,9 @@ function App() {
       
       setLastUpdated(new Date());
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       console.error('Error fetching data from n8n:', error);
+      setError(`Failed to fetch data: ${errorMessage}`);
       // Fallback to empty arrays if there's an error
       setAppointments([]);
       setCustomers([]);
@@ -146,6 +150,11 @@ function App() {
                 <Clock className="w-4 h-4 inline mr-1" />
                 Last updated: {lastUpdated.toLocaleTimeString()}
               </div>
+              {error && (
+                <div className="text-sm text-red-600 bg-red-50 px-3 py-1 rounded-md">
+                  {error}
+                </div>
+              )}
               <button
                 onClick={handleManualRefresh}
                 disabled={isRefreshing}
@@ -191,6 +200,38 @@ function App() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {error && (
+          <div className="mb-6 bg-red-50 border border-red-200 rounded-md p-4">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-red-800">
+                  Connection Error
+                </h3>
+                <div className="mt-2 text-sm text-red-700">
+                  <p>Unable to connect to the appointment system. Please check:</p>
+                  <ul className="list-disc list-inside mt-1 space-y-1">
+                    <li>Your n8n workflow is active and running</li>
+                    <li>The webhook URL is accessible</li>
+                    <li>Your internet connection is stable</li>
+                  </ul>
+                  <p className="mt-2">
+                    <button 
+                      onClick={handleManualRefresh}
+                      className="font-medium text-red-800 underline hover:text-red-900"
+                    >
+                      Try refreshing the data
+                    </button>
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
         {activeTab === 'appointments' && (
           <AppointmentsDashboard appointments={appointments} />
         )}
