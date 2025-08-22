@@ -32,101 +32,86 @@ function App() {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Mock data - In real implementation, this would fetch from n8n API
-  const mockAppointments: Appointment[] = [
-    {
-      id: '1',
-      ownerName: 'Sarah Johnson',
-      petType: 'Golden Retriever',
-      serviceType: 'Full Grooming',
-      dateTime: new Date().toISOString(),
-      contactInfo: '(555) 123-4567',
-      status: 'today'
-    },
-    {
-      id: '2',
-      ownerName: 'Mike Chen',
-      petType: 'Persian Cat',
-      serviceType: 'Nail Trim',
-      dateTime: new Date(Date.now() + 86400000).toISOString(),
-      contactInfo: '(555) 987-6543',
-      status: 'upcoming'
-    },
-    {
-      id: '3',
-      ownerName: 'Emily Rodriguez',
-      petType: 'Poodle',
-      serviceType: 'Bath & Brush',
-      dateTime: new Date(Date.now() + 172800000).toISOString(),
-      contactInfo: '(555) 456-7890',
-      status: 'upcoming'
-    },
-    {
-      id: '4',
-      ownerName: 'David Wilson',
-      petType: 'German Shepherd',
-      serviceType: 'Full Grooming',
-      dateTime: new Date(Date.now() + 259200000).toISOString(),
-      contactInfo: '(555) 321-0987',
-      status: 'upcoming'
-    }
-  ];
-
-  const mockCustomers: Customer[] = [
-    {
-      id: '1',
-      ownerName: 'Sarah Johnson',
-      petType: 'Golden Retriever',
-      serviceType: 'Full Grooming',
-      preferredDateTime: 'Weekday mornings',
-      contactInfo: '(555) 123-4567',
-      email: 'sarah.j@email.com',
-      notes: 'Rex is very friendly but gets nervous with nail trims'
-    },
-    {
-      id: '2',
-      ownerName: 'Mike Chen',
-      petType: 'Persian Cat',
-      serviceType: 'Nail Trim',
-      preferredDateTime: 'Weekends',
-      contactInfo: '(555) 987-6543',
-      email: 'mike.chen@email.com',
-      notes: 'Fluffy needs sedative for grooming'
-    },
-    {
-      id: '3',
-      ownerName: 'Emily Rodriguez',
-      petType: 'Poodle',
-      serviceType: 'Bath & Brush',
-      preferredDateTime: 'Any time',
-      contactInfo: '(555) 456-7890',
-      email: 'emily.r@email.com'
-    },
-    {
-      id: '4',
-      ownerName: 'David Wilson',
-      petType: 'German Shepherd',
-      serviceType: 'Full Grooming',
-      preferredDateTime: 'Afternoons',
-      contactInfo: '(555) 321-0987',
-      email: 'david.w@email.com',
-      notes: 'Max is large and needs extra time'
-    }
-  ];
+  const N8N_WEBHOOK_URL = 'https://n8n.srv846726.hstgr.cloud/webhook/f9993f5c-0eda-499b-9e41-e9fbdebc6b45/chat';
 
   // Simulate data fetching
   const fetchData = async () => {
     setIsRefreshing(true);
-    // In real implementation, this would be:
-    // const response = await fetch('YOUR_N8N_WEBHOOK_URL');
-    // const data = await response.json();
     
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    try {
+      const response = await fetch(N8N_WEBHOOK_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'get_data',
+          timestamp: new Date().toISOString()
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      // Process appointments data
+      if (data.appointments && Array.isArray(data.appointments)) {
+        const processedAppointments = data.appointments.map((apt: any, index: number) => ({
+          id: apt.id || `apt-${index}`,
+          ownerName: apt.ownerName || apt.owner_name || '',
+          petType: apt.petType || apt.pet_type || '',
+          serviceType: apt.serviceType || apt.service_type || '',
+          dateTime: apt.dateTime || apt.date_time || new Date().toISOString(),
+          contactInfo: apt.contactInfo || apt.contact_info || apt.phone || '',
+          status: determineAppointmentStatus(apt.dateTime || apt.date_time)
+        }));
+        setAppointments(processedAppointments);
+      }
+      
+      // Process customers data
+      if (data.customers && Array.isArray(data.customers)) {
+        const processedCustomers = data.customers.map((customer: any, index: number) => ({
+          id: customer.id || `cust-${index}`,
+          ownerName: customer.ownerName || customer.owner_name || '',
+          petType: customer.petType || customer.pet_type || '',
+          serviceType: customer.serviceType || customer.service_type || '',
+          preferredDateTime: customer.preferredDateTime || customer.preferred_date_time || '',
+          contactInfo: customer.contactInfo || customer.contact_info || customer.phone || '',
+          email: customer.email || '',
+          notes: customer.notes || ''
+        }));
+        setCustomers(processedCustomers);
+      }
+      
+      setLastUpdated(new Date());
+    } catch (error) {
+      console.error('Error fetching data from n8n:', error);
+      // Fallback to empty arrays if there's an error
+      setAppointments([]);
+      setCustomers([]);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+  
+  // Helper function to determine appointment status based on date
+  const determineAppointmentStatus = (dateTimeString: string): 'upcoming' | 'today' | 'completed' => {
+    if (!dateTimeString) return 'upcoming';
     
-    setAppointments(mockAppointments);
-    setCustomers(mockCustomers);
-    setLastUpdated(new Date());
-    setIsRefreshing(false);
+    const appointmentDate = new Date(dateTimeString);
+    const today = new Date();
+    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+    
+    if (appointmentDate >= todayStart && appointmentDate < todayEnd) {
+      return 'today';
+    } else if (appointmentDate < todayStart) {
+      return 'completed';
+    } else {
+      return 'upcoming';
+    }
   };
 
   // Auto-refresh every 5 minutes
